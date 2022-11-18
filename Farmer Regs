@@ -1,0 +1,129 @@
+echo "# Agri-Probs" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/nvymshr/Agri-Probs.git
+git push -u origin main
+*// PxD Farmer Registration Study*//
+
+describe
+
+.//MERGING OF DATASETS
+//* datasets were merged in the Excel file itself using the following steps
+//* sort ID variables for both datasets
+//*extend the sorting to the entire datasets
+//*paste the datasets side by side
+//*check for proper matching using an IF statement, ie, "=IF (A1=F1, 0, 1)" if matches, return 0 else return 1
+//*finally sum of all the values in the true,false 'matching' field was taken and found to be 0, implying that for all rows matching was done
+//Sanity checks were performed for eandom fields in both datasets and the matching was found to be correct
+
+//* standardising dataset, eg phone type was a string variable, difficult to compare, converted to caregorical,by first trying to get all to lower case and then encoding
+
+gen lower_phonetype = lower( phone_type )
+encode phone_type, generate(phone_Type_Numerical)
+
+//*for categorising gain loss functions, at a later stage in the clean dataset the variable was finally saved as 'gainlossframing'
+encode MessageClassification,gen(gainlossmessage)
+
+//dummy variable for loss or gain framed messages. variable called 'gainlossindicatorvar'- again, a temporary variable which was removed after cleaning and encoding 
+
+generate gainlossindicatorvar = 0
+replace gainlossindicatorvar= 1 if MessageClassification == "LOSS"
+replace gainlossindicatorvar = . if MessageClassification ==-99
+destring MessageClassification , replace force
+tab gainlossindicatorvar
+
+
+//*creating a dummy variable for yes and no dependeing on response. Variable called 'response', for clarity in the final dataset this was saved as registration_response
+
+generate response = 0
+replace response= 1 if Reg_response == "YES"
+replace response = . if Reg_response ==-99
+destring  Reg_response , replace force
+tab response
+
+//*converting gender to categorical variables, 1=male, 0=female
+
+
+generate gender1 = 0
+replace gender1= 1 if lowercaseGen == "male"
+replace gender = . if gender ==-99
+destring  gender , replace force
+
+
+
+//*other cleaning steps, string trimming, converting missing values -99 to . farm size changed to farm_size for clarity
+
+generate farm_size= farmsize
+replace farm_size=. if farmsize==-99
+generate age2= age
+replace age2=. if age==-99
+di stritrim(" Region_cat ")
+di stritrim("phone_Type_Numerical ")
+di stritrim(" Region_cat ")
+
+
+//*allocating categories of crops to cropresp
+
+generate cropresphelper=string( crop_category)
+destring cropresphelper,replace force
+generate cropresp="maize" if crop_category==1
+replace cropresp ="potatoes" if crop_category==3
+replace cropresp ="peas" if crop_category==4
+replace cropresp ="beans" if crop_category==2
+replace cropresp ="." if cropresphelper ==.
+
+//* Farmer ID and Region ID Problem
+
+gen region_id=substr( ID , 1, 2)
+encode region_id ,gen(regionIDEncoded)
+drop region_id
+rename regionIDEncoded region_ID
+
+gen farmer_id=substr( ID , 3, 5)
+destring  farmer_id , replace force
+
+
+//*table of descriptors
+
+tab gender1 if registration_resp==1
+sum age2
+sum farm_size
+sum age2 if registration_resp==1
+sum farm_size if registration_resp==1
+tab gender1 if registration_resp==1
+tab age2
+sum age2 if registration_resp==1
+sum farm_size if registration_resp==1
+tab gender1 if registration_resp==0
+sum farm_size if registration_resp==0
+sum age2 if registration_resp==0
+
+
+//* was there a difference between respondents and non respondents?
+
+tabulate registration_resp gender1 ,chi2
+ttest age2 ,by( registration_resp )
+ttest farm_size ,by( registration_resp )
+
+//* now with a new specification variable
+
+//*old predictors- result- highly negative correlation of response with farm size. People with smaller mean farm sizes are more likely to respond- yes and register
+
+pwcorr registration_resp gender1 age2 farm_size,sig star(0.05) obs
+
+//*new set of variables to predict coefficient of determination
+
+logit registration_resp Gain_Loss_Framing
+logit registration_resp Gain_Loss_Framing language1 gender1 Region_cat
+
+//* Clustered Bar Chart Crops by Region
+
+graph bar, over( cropresp ) over( region_ID )
+graph bar (count), over( cropresp ) over( region_ID )
+
+
+
+
+
